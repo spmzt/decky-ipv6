@@ -44,7 +44,7 @@ const modeOptions: SingleDropdownOption[] = [
 
 const modeDescriptions: Record<string, string> = {
   [SYSTEM_DEFAULT]: "The plugin does not change any network settings.",
-  enabled: "IPv6 is kept enabled, even if SteamOS turns it off.",
+  enabled: "IPv6 is kept enabled, even if SteamOS or a saved network turns it off.",
   disabled: "IPv6 is kept disabled. Loopback (::1) stays enabled.",
   ipv6_only: "IPv4 is turned off on Wi-Fi and Ethernet. Requires NAT64/DNS64 on your network to reach IPv4-only services.",
 };

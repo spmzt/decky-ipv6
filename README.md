@@ -17,13 +17,17 @@ SteamOS disables IPv6 by default and reverts the setting on every update.
 
 ## How it works
 
-The selected mode is stored in the plugin's settings directory and re-applied when the plugin loads and every few seconds afterwards, since SteamOS updates and NetworkManager (on resume or when switching Wi-Fi networks) may revert it.
+The selected mode is stored in the plugin's settings directory and re-applied when the plugin loads, whenever a device connects (watched with `nmcli monitor`) and every few seconds afterwards, since SteamOS updates and NetworkManager (on resume or when switching Wi-Fi networks) may revert it.
 
 **Enabled** and **Disabled** write `/etc/sysctl.d/99-decky-ipv6.conf`, which sets `net.ipv6.conf.{all,default}.disable_ipv6` early at boot, and apply the same setting to every interface immediately.
 Loopback (`lo`) always keeps IPv6 enabled so local services bound to `::1` keep working.
 
-**IPv6 only** behaves like **Enabled** and additionally runs `nmcli device modify <device> ipv4.method disabled` on connected Wi-Fi and Ethernet devices.
-This only changes the active connection, not the saved NetworkManager profile, and is reverted with `nmcli device reapply` when leaving the mode.
+In **Enabled** and **IPv6 only**, saved NetworkManager connections may still have IPv6 disabled, which NetworkManager re-applies on every connect.
+When a connected Wi-Fi or Ethernet device has no IPv6 link-local address, the plugin runs `nmcli device modify <device> ipv6.method auto`.
+
+**IPv6 only** additionally runs `nmcli device modify <device> ipv4.method disabled` on those devices.
+
+`nmcli device modify` only changes the active connection, not the saved NetworkManager profile, and is reverted with `nmcli device reapply` when leaving **IPv6 only** or switching to **System default**.
 Reaching IPv4-only services in this mode requires NAT64/DNS64 on the network, and DNS servers must be provided over IPv6 (RA RDNSS or DHCPv6).
 
 **System default** removes the sysctl config, resets `disable_ipv6` to the kernel default and reloads the system's own configuration with `sysctl --system`.
