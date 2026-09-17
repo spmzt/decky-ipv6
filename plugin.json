@@ -1,11 +1,11 @@
 {
-  "name": "Example Plugin",
-  "author": "John Doe",
-  "flags": ["debug", "_root"],
+  "name": "IPv6 Enabler Plugin",
+  "author": "Seyed Pouria Mousavizadeh Tehrani",
+  "flags": ["root"],
   "api_version": 1,
   "publish": {
-    "tags": ["template", "root"],
-    "description": "Decky example plugin.",
+    "tags": ["ipv6", "networking", "root"],
+    "description": "Enable or disable IPv6 on your Steam Deck.",
     "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
   }
 }

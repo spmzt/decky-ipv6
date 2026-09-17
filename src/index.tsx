@@ -1,115 +1,129 @@
 import {
-  ButtonItem,
+  DropdownItem,
+  Field,
   PanelSection,
   PanelSectionRow,
-  Navigation,
+  SingleDropdownOption,
   staticClasses
 } from "@decky/ui";
 import {
-  addEventListener,
-  removeEventListener,
   callable,
   definePlugin,
-  toaster,
-  // routerHook
+  toaster
 } from "@decky/api"
-import { useState } from "react";
-import { FaShip } from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { FaNetworkWired } from "react-icons/fa";
 
-// import logo from "../assets/logo.png";
+type Mode = "enabled" | "disabled" | "ipv6_only" | null;
 
-// This function calls the python function "add", which takes in two numbers and returns their sum (as a number)
-// Note the type annotations:
-//  the first one: [first: number, second: number] is for the arguments
-//  the second one: number is for the return value
-const add = callable<[first: number, second: number], number>("add");
+interface Address {
+  interface: string;
+  address: string;
+  prefix: number;
+}
 
-// This function calls the python function "start_timer", which takes in no arguments and returns nothing.
-// It starts a (python) timer which eventually emits the event 'timer_event'
-const startTimer = callable<[], void>("start_timer");
+interface Status {
+  mode: Mode;
+  ipv6_enabled: boolean;
+  ipv6_addresses: Address[];
+  ipv4_addresses: Address[];
+}
+
+const getStatus = callable<[], Status>("get_status");
+const setMode = callable<[mode: Mode], Status>("set_mode");
+
+// Dropdown option data must be non-null, so "system default" is mapped to null on the way out.
+const SYSTEM_DEFAULT = "system";
+
+const modeOptions: SingleDropdownOption[] = [
+  { data: SYSTEM_DEFAULT, label: "System default" },
+  { data: "enabled", label: "Enabled" },
+  { data: "disabled", label: "Disabled" },
+  { data: "ipv6_only", label: "IPv6 only" },
+];
+
+const modeDescriptions: Record<string, string> = {
+  [SYSTEM_DEFAULT]: "The plugin does not change any network settings.",
+  enabled: "IPv6 is kept enabled, even if SteamOS turns it off.",
+  disabled: "IPv6 is kept disabled. Loopback (::1) stays enabled.",
+  ipv6_only: "IPv4 is turned off on Wi-Fi and Ethernet. Requires NAT64/DNS64 on your network to reach IPv4-only services.",
+};
+
+function AddressRows({ title, addresses }: { title: string; addresses: Address[] }) {
+  return (
+    <PanelSection title={title}>
+      {addresses.length ? (
+        addresses.map((a) => (
+          <PanelSectionRow key={`${a.interface}-${a.address}`}>
+            <Field label={a.interface} description={`${a.address}/${a.prefix}`} focusable />
+          </PanelSectionRow>
+        ))
+      ) : (
+        <PanelSectionRow>
+          <Field label="None" focusable />
+        </PanelSectionRow>
+      )}
+    </PanelSection>
+  );
+}
 
 function Content() {
-  const [result, setResult] = useState<number | undefined>();
+  const [status, setStatus] = useState<Status | undefined>();
+  const [busy, setBusy] = useState(false);
 
-  const onClick = async () => {
-    const result = await add(Math.random(), Math.random());
-    setResult(result);
+  useEffect(() => {
+    const refresh = () => getStatus().then(setStatus);
+    refresh();
+    // Addresses change a few seconds after a mode switch (SLAAC/DHCP).
+    const interval = setInterval(refresh, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const onChange = async (option: SingleDropdownOption) => {
+    const mode = option.data === SYSTEM_DEFAULT ? null : (option.data as Mode);
+    setBusy(true);
+    try {
+      setStatus(await setMode(mode));
+    } catch (e) {
+      toaster.toast({ title: "IPv6", body: `Failed to change mode: ${e}` });
+    } finally {
+      setBusy(false);
+    }
   };
 
+  const selected = status === undefined ? undefined : (status.mode ?? SYSTEM_DEFAULT);
+
   return (
-    <PanelSection title="Panel Section">
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={onClick}
-        >
-          {result ?? "Add two numbers via Python"}
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => startTimer()}
-        >
-          {"Start Python timer"}
-        </ButtonItem>
-      </PanelSectionRow>
-
-      {/* <PanelSectionRow>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={logo} />
-        </div>
-      </PanelSectionRow> */}
-
-      {/*<PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => {
-            Navigation.Navigate("/decky-plugin-test");
-            Navigation.CloseSideMenus();
-          }}
-        >
-          Router
-        </ButtonItem>
-      </PanelSectionRow>*/}
-    </PanelSection>
+    <>
+      <PanelSection>
+        <PanelSectionRow>
+          <DropdownItem
+            label="IPv6 mode"
+            description={selected === undefined ? undefined : modeDescriptions[selected]}
+            rgOptions={modeOptions}
+            selectedOption={selected}
+            disabled={status === undefined || busy}
+            onChange={onChange}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <Field label="Kernel IPv6" focusable>
+            {status === undefined ? "…" : status.ipv6_enabled ? "Enabled" : "Disabled"}
+          </Field>
+        </PanelSectionRow>
+      </PanelSection>
+      <AddressRows title="IPv6 addresses" addresses={status?.ipv6_addresses ?? []} />
+      <AddressRows title="IPv4 addresses" addresses={status?.ipv4_addresses ?? []} />
+    </>
   );
 };
 
 export default definePlugin(() => {
-  console.log("Template plugin initializing, this is called once on frontend startup")
-
-  // serverApi.routerHook.addRoute("/decky-plugin-test", DeckyPluginRouterTest, {
-  //   exact: true,
-  // });
-
-  // Add an event listener to the "timer_event" event from the backend
-  const listener = addEventListener<[
-    test1: string,
-    test2: boolean,
-    test3: number
-  ]>("timer_event", (test1, test2, test3) => {
-    console.log("Template got timer_event with:", test1, test2, test3)
-    toaster.toast({
-      title: "template got timer_event",
-      body: `${test1}, ${test2}, ${test3}`
-    });
-  });
-
   return {
-    // The name shown in various decky menus
-    name: "Test Plugin",
-    // The element displayed at the top of your plugin's menu
-    titleView: <div className={staticClasses.Title}>Decky Example Plugin</div>,
-    // The content of your plugin's menu
+    name: "IPv6",
+    titleView: <div className={staticClasses.Title}>IPv6 Control</div>,
     content: <Content />,
-    // The icon displayed in the plugin list
-    icon: <FaShip />,
-    // The function triggered when your plugin unloads
-    onDismount() {
-      console.log("Unloading")
-      removeEventListener("timer_event", listener);
-      // serverApi.routerHook.removeRoute("/decky-plugin-test");
-    },
+    icon: <FaNetworkWired />,
+    onDismount() {},
   };
 });
