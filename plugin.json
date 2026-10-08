@@ -6,6 +6,6 @@
   "publish": {
     "tags": ["ipv6", "networking", "root"],
     "description": "Enable or disable IPv6 on your Steam Deck.",
-    "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
+    "image": "https://raw.githubusercontent.com/spmzt/decky-ipv6/refs/heads/main/assets/preview.jpg"
   }
 }
